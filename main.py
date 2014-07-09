@@ -201,6 +201,8 @@ class Game():
             return
         if my < ty:
             self.next_move = SOUTH
+            return
+        self.next_move = TAKE
             
     ####
     # init methods
