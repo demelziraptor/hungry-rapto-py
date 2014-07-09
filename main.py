@@ -19,6 +19,7 @@ class Game():
         # state of the game - fixed from game
         self.board = []
         self.current_position = (0,0)
+        self.opponent_position = (0,0)
         
         # state of the game - calculated
         self.needed_fruits = {}   # how much of each type of fruit need to get
@@ -69,6 +70,7 @@ class Game():
     ####
     def set_current_position(self):
         self.current_position = (get_my_x(), get_my_y())
+        self.opponent_position = (get_opponent_x(), get_opponent_y())
     
     def move(self):
         if self.dinner_location:
@@ -86,14 +88,20 @@ class Game():
         return False
     
     def calculate_dinner_location(self):
-        dinner = {'name': '', 'coords': (0,0), 'distance': 0, 'needed': 0}
+        dinner = {
+            'name': '', 
+            'position': (0,0), 
+            'distance': 0, 
+            'opp_distance': 0, 
+            'needed': 0,
+            'available': 0}
         for fruit in self.pref_fruit_with_attributes:
             if not dinner['name']:
                 dinner = fruit
                 continue
             dinner = self._decide_most_delicious(dinner, fruit)
         trace('this is dinner: ' + str(dinner))
-        self.dinner_location = dinner['coords']
+        self.dinner_location = dinner['position']
 
     def calculate_game_state(self):
         self.num_types_won = 0
@@ -110,10 +118,10 @@ class Game():
                 self.num_types_won += 1
             # count if opponent has almost won a type
             if self._opponent_almost_has_type(fruit_name, opponent):
-                additional_types_needed = 1 
+                additional_types_needed = 1
             # set needed fruit
             if (mine >= self.targets[fruit_name] or opponent >= self.targets[fruit_name] or 
-                    not available):
+                    not available or self._opponent_about_to_win_type(fruit_name)):
                 self.needed_fruits[fruit_name] = 0
                 continue
             self.needed_fruits[fruit_name] = self.targets[fruit_name] - mine
@@ -142,47 +150,41 @@ class Game():
                 fruit = fruit = self._find_any_leftover_fruit()
             self.pref_fruit_types.append(fruit)
     
-    
     def calculate_pref_fruit_with_attributes(self):
         for x in range(self.width):
             for y in range(self.height):
                 name = self.board[x][y]
                 if name in self.pref_fruit_types:
-                    trace('wanted fruit at: ' + str((x,y)))
                     position = (x,y)
                     distance = self._distance(self.current_position, position)
+                    opp_distance = self._distance(self.opponent_position, position)
                     self.pref_fruit_with_attributes.append({
                         'name': name, 
-                        'coords': position,
+                        'position': position,
                         'distance': distance,
-                        'needed': self.needed_fruits[name]})
+                        'opp_distance': opp_distance,
+                        'needed': self.needed_fruits[name],
+                        'available': self.available_fruits[name]})
             
     ####
     # fruit-picking methods
     ####
-    def _opponent_almost_has_type(self, fruit_name, count):
-        """ do we want to get the extra type for safety? """
-        to_go = self.targets[fruit_name] - count
-        if to_go > 0 and to_go <= self.available_fruits[fruit_name]:
-            return True
-        return False
-    
     def _pick_lowest(self, f0, f1, iteration):
         try:
             key = self.pick_priority[iteration]
         except:
             # nothing between them, more AI in future, for now pick f0
-            #trace('fruit comparison same')
             return f0
         if f0[key] == f1[key]:
             return self._pick_lowest(f0, f1, iteration + 1)
-        #trace('chosen ' + str(min((f0,f1), key=lambda x:x[key])) + ' between these: ' + str(f0) + ' ' + str(f1) + ' in this type: ' + str(self.pick_priority[iteration])
         return min((f0,f1), key=lambda x:x[key])
     
     def _calculate_fruit_deliciousness(self, fruit):
         if not fruit['needed']:
             fruit['needed'] = 30   # random high number to push up yumminess
-        return fruit['distance'] * fruit['needed']
+        if fruit['opp_distance'] == 0:
+            fruit['needed'] = 15   # opp probably get so ignore
+        return (fruit['distance'] +1) * fruit['needed'] * fruit['available']
     
     def _decide_most_delicious(self, f0, f1):
         f0['yummy'] = self._calculate_fruit_deliciousness(f0)
@@ -192,6 +194,19 @@ class Game():
     ####
     # helper methods
     ####
+    def _opponent_about_to_win_type(self, fruit_name):
+        fruit_at_opp = self.board[self.opponent_position[0]][self.opponent_position[1]]
+        if fruit_at_opp == fruit_name:
+            return True
+        return False
+    
+    def _opponent_almost_has_type(self, fruit_name, count):
+        """ do we want to get the extra type for safety? """
+        to_go = self.targets[fruit_name] - count
+        if to_go > 0 and to_go <= self.available_fruits[fruit_name]:
+            return True
+        return False    
+    
     def _calculate_min_stuff_wanted(self, stuff_total):
         if stuff_total % 2 == 0:
             return (stuff_total + 2) / 2
