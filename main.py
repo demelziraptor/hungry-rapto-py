@@ -206,7 +206,7 @@ class Game():
                 weight_offset = self._nearby_fruit_weight_calculator(distance, self.needed_fruits[name], self.available_fruits[name])
                 new_weight += weight_offset
                 new_max_weight += max_weight
-        return (new_weight / (new_max_weight / 100)) /10
+        return (new_weight / (new_max_weight / 100))
     
     def _calculate_nearby_fruit_factor3(self, fruit):
         """ look at nearby fruit and assign weight to each """
@@ -269,7 +269,7 @@ class Game():
         fruit['yummy_calc'] = (needed, available, nearby_factor, distance)
         fruit['nearby_factor'] = nearby_factor
         # calculation
-        return (distance * 2.5) + (needed * 1) + (available * 1.2) + (nearby_factor * 1.2)
+        return (distance * 4) + (needed * 1) + (available * 0.3) + (nearby_factor * 1)
     
     def _decide_most_delicious(self, f0, f1):
         f0['yummy'] = self._calculate_fruit_deliciousness(f0)
