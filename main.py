@@ -12,7 +12,6 @@ class Game():
         
         # settings
         self.pick_priority = ['yummy', 'needed', 'distance', 'name']   # fruit choosing decision
-        self.fruit_type_buffer = 1   # self.num_types_needed +1 (safety if lose type)
         
         ####
         # properties that change
@@ -98,15 +97,20 @@ class Game():
 
     def calculate_game_state(self):
         self.num_types_won = 0
+        
         for fruit_name,fruit_total in self.fruits.iteritems():
             mine = get_my_item_count(fruit_name)
             opponent = get_opponent_item_count(fruit_name)
             available = fruit_total - mine - opponent
+            additional_types_needed = 0
             # set available fruit
             self.available_fruits[fruit_name] = available
             # count if I've won this type
             if mine >= self.targets[fruit_name]:
                 self.num_types_won += 1
+            # count if opponent has almost won a type
+            if self._opponent_almost_has_type(fruit_name, opponent):
+                additional_types_needed = 1 
             # set needed fruit
             if (mine >= self.targets[fruit_name] or opponent >= self.targets[fruit_name] or 
                     not available):
@@ -114,7 +118,7 @@ class Game():
                 continue
             self.needed_fruits[fruit_name] = self.targets[fruit_name] - mine
         self.num_types_needed = self.num_types_to_win - (self.num_types_won -
-            self.fruit_type_buffer)
+            additional_types_needed)
 
     def calculate_move_preferences(self):
         # reset preferences
@@ -156,9 +160,12 @@ class Game():
     ####
     # fruit-picking methods
     ####
-    def _decide_extra_type(self):
+    def _opponent_almost_has_type(self, fruit_name, count):
         """ do we want to get the extra type for safety? """
-        
+        to_go = self.targets[fruit_name] - count
+        if to_go > 0 and to_go <= self.available_fruits[fruit_name]:
+            return True
+        return False
     
     def _pick_lowest(self, f0, f1, iteration):
         try:
