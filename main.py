@@ -75,6 +75,9 @@ class Game():
     def move(self):
         if self.dinner_location:
             self._calculate_direction()
+        trace('num types: ' +str(self.num_types_needed))
+        trace('pref types: '+str(self.pref_fruit_types))
+        trace('needed: '+str(self.needed_fruits))
         return self.next_move
     
     def can_take_fruit(self):
@@ -100,10 +103,11 @@ class Game():
                 dinner = fruit
                 continue
             dinner = self._decide_most_delicious(dinner, fruit)
-        trace('this is dinner: ' + str(dinner))
+        trace('DINNER LOCATED: ' + str(dinner))
         self.dinner_location = dinner['position']
 
     def calculate_game_state(self):
+        """ calculates fruits available, fruits needed, and number of fruit types needed """
         self.num_types_won = 0
         additional_types_needed = 0
         for fruit_name,fruit_total in self.fruits.iteritems():
@@ -116,15 +120,15 @@ class Game():
             if mine >= self.targets[fruit_name]:
                 self.num_types_won += 1
             # count if opponent has almost won a type
-            if self._opponent_almost_has_type(fruit_name, opponent):
+            if self._one_fruit_left_to_win(fruit_name, opponent):
                 additional_types_needed = 1
             # set needed fruit
             if (mine >= self.targets[fruit_name] or opponent >= self.targets[fruit_name] or 
-                    not available or self._opponent_about_to_win_type(fruit_name)):
+                    not available or self._opponent_about_to_win_type(fruit_name, opponent)):
                 self.needed_fruits[fruit_name] = 0
                 continue
             self.needed_fruits[fruit_name] = self.targets[fruit_name] - mine
-        self.num_types_needed = self.num_types_to_win - (self.num_types_won -
+        self.num_types_needed = ((self.num_types_to_win - self.num_types_won) +
             additional_types_needed)
 
     def calculate_move_preferences(self):
@@ -137,6 +141,7 @@ class Game():
         self.calculate_pref_fruit_with_attributes()
     
     def calculate_pref_fruit_types(self):
+        """ calculate the types of fruit we want """
         needed_fruits = self.needed_fruits.copy()
         for i in range(self.num_types_needed):
             try:
@@ -145,11 +150,12 @@ class Game():
                     needed_fruits.pop(fruit, None)
                     continue
             except:
-                # going to be a tie, no more prefs so pick any available fruit
-                fruit = fruit = self._find_any_leftover_fruit()
+                # going to be a tie, no more prefs so pick any available fruit type
+                fruit = self._find_any_leftover_fruit()
             self.pref_fruit_types.append(fruit)
     
     def calculate_pref_fruit_with_attributes(self):
+        """ create list of fruit we possibly want with useful attributes """
         for x in range(self.width):
             for y in range(self.height):
                 name = self.board[x][y]
@@ -169,6 +175,7 @@ class Game():
     # fruit-picking methods
     ####
     def _pick_lowest(self, f0, f1, iteration):
+        """ go through pick_priority until we have a winner! """
         try:
             key = self.pick_priority[iteration]
         except:
@@ -178,31 +185,83 @@ class Game():
             return self._pick_lowest(f0, f1, iteration + 1)
         return min((f0,f1), key=lambda x:x[key])
     
+    def _calculate_nearby_fruit_factor(self, fruit):
+        """ look at nearby fruit and assign weight to each """
+        search_area = 10
+        empty_position_weight = 30
+        fruits_nearby = 0
+        weight_offset = 0
+        for x,y in self._nearby_positions(fruit['position'], search_area):
+            if self.board[x][y] in self.pref_fruit_types:
+                fruits_nearby += 1
+                name = self.board[x][y]
+                weight_offset += (self._distance(fruit['position'], (x,y)) + 
+                    self.needed_fruits[name] + self.available_fruits[name])
+        weight = ((self._max_num_nearby_positions(search_area) - fruits_nearby) * 
+            empty_position_weight) + weight_offset
+        return weight/100
+    
     def _calculate_fruit_deliciousness(self, fruit):
+        """ calculate the 'yummy' of the fruit """
+        # common adjustments
+        needed = fruit['needed']
+        available = fruit['available']
+        nearby_factor = self._calculate_nearby_fruit_factor(fruit)
+        distance = fruit['distance'] + 1
+        
+        # special cases
         if not fruit['needed']:
-            fruit['needed'] = 30   # random high number to push up yumminess
-        if fruit['opp_distance'] == 0:
-            fruit['needed'] = 15   # opp probably get so ignore
-        return (fruit['distance'] +1) * fruit['needed'] * fruit['available']
+            needed = 30   # random high number to push up yumminess
+        if not fruit['opp_distance']:
+            needed = 15   # opp currently on this fruit, probably get so ignore
+        if available == 1:
+            available = 0.01
+
+        # add final numbers to object for debugging
+        fruit['yummy_calc'] = (needed, available, nearby_factor, distance)
+        fruit['nearby_factor'] = self._calculate_nearby_fruit_factor(fruit)
+        # calculation
+        return (distance * 2.5) + (needed * 1) + (available * 1.2) + (nearby_factor * 1.2)
     
     def _decide_most_delicious(self, f0, f1):
         f0['yummy'] = self._calculate_fruit_deliciousness(f0)
         f1['yummy'] = self._calculate_fruit_deliciousness(f1)
+        trace('comparing: ' + str(f0) +  ' || vs || ' + str(f1))
         return self._pick_lowest(f0, f1, 0)
 
     ####
     # helper methods
     ####
-    def _opponent_about_to_win_type(self, fruit_name):
+    def _max_num_nearby_positions(self, area):
+        """ assuming no board edges, maximum number of nearby positions """
+        total = 0
+        for i in range(area):
+            total += (i+1) * 4
+        return total
+    
+    def _nearby_positions(self, position, area):
+        """ generator to calculate nearby valid positions """
+        for x in range(position[0] - area, position[0] + area + 1):
+            for y in range(position[1] - area, position[1] + area + 1):
+                if (x < 0 or y < 0) or (x,y) == position or (x >= self.width or y >= self.height):
+                    continue
+                if abs(position[0] - x) + abs(position[1] - y) > area:
+                    continue
+                yield (x,y) 
+    
+    def _opponent_about_to_win_type(self, fruit_name, count):
+        """ returns true if opponent can take the fruit on their next go and win this type """
         fruit_at_opp = self.board[self.opponent_position[0]][self.opponent_position[1]]
-        if fruit_at_opp == fruit_name:
+        if fruit_at_opp == fruit_name and self._one_fruit_left_to_win(fruit_name, count):
+            trace('opp about to win')
             return True
         return False
     
-    def _opponent_almost_has_type(self, fruit_name, count):
-        """ do we want to get the extra type for safety? """
+    def _one_fruit_left_to_win(self, fruit_name, count):
+        """ returns true if only 1 (or 0.5) more fruit is required to win the type """
         to_go = self.targets[fruit_name] - count
-        if to_go > 0 and to_go <= self.available_fruits[fruit_name]:
+        if (to_go > 0) and (to_go <= 1) and (to_go <= self.available_fruits[fruit_name]):
+            trace('1 to go')
             return True
         return False    
     
@@ -258,7 +317,7 @@ class Game():
             self.targets[fruit_name] = fruit_target
     
     ####
-    # broken random direction
+    # broken random direction - need to fix without import
     ####    
     def pick_random_direction(self):
         possible_directions = [NORTH, SOUTH, EAST, WEST]
