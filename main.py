@@ -76,8 +76,6 @@ class Game():
         if self.dinner_location:
             self._calculate_direction()
         trace('num types: ' +str(self.num_types_needed))
-        trace('pref types: '+str(self.pref_fruit_types))
-        trace('needed: '+str(self.needed_fruits))
         return self.next_move
     
     def can_take_fruit(self):
@@ -187,7 +185,7 @@ class Game():
     
     def _calculate_nearby_fruit_factor(self, fruit):
         """ look at nearby fruit and assign weight to each """
-        search_area = 10
+        search_area = 12
         empty_position_weight = 30
         fruits_nearby = 0
         weight_offset = 0
@@ -221,7 +219,7 @@ class Game():
         fruit['yummy_calc'] = (needed, available, nearby_factor, distance)
         fruit['nearby_factor'] = self._calculate_nearby_fruit_factor(fruit)
         # calculation
-        return (distance * 2.5) + (needed * 1) + (available * 1.2) + (nearby_factor * 1.2)
+        return (distance * 2.5) + (needed * 1) + (available * 1.2) + (nearby_factor * 3.5)
     
     def _decide_most_delicious(self, f0, f1):
         f0['yummy'] = self._calculate_fruit_deliciousness(f0)
