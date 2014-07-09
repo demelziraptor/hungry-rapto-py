@@ -200,14 +200,37 @@ class Game():
         # weight
         for x,y in self._nearby_positions(fruit['position'], search_area):
             distance = self._distance(fruit['position'], (x,y))
+            max_weight = (self._nearby_fruit_weight_calculator(distance, max_needed, max_available))*2
+            if self.board[x][y] in self.pref_fruit_types:
+                name = self.board[x][y]
+                weight_offset = self._nearby_fruit_weight_calculator(distance, self.needed_fruits[name], self.available_fruits[name])
+                new_weight += weight_offset
+                new_max_weight += max_weight
+        return (new_weight / (new_max_weight / 100)) /10
+    
+    def _calculate_nearby_fruit_factor3(self, fruit):
+        """ look at nearby fruit and assign weight to each """
+        search_area = self._distance((0,0), (self.width-1, self.height-1))
+        max_needed = max(self.needed_fruits.values())
+        max_available = max(self.available_fruits.values())
+        max_positions_per_distance = self._max_num_nearby_positions(search_area)
+        new_weight = 0
+        new_max_weight = 0
+        # weight
+        for x,y in self._nearby_positions(fruit['position'], search_area):
+            distance = self._distance(fruit['position'], (x,y))
             max_weight = (self._nearby_fruit_weight_calculator(distance, max_needed, max_available))*5
             if self.board[x][y] in self.pref_fruit_types:
                 name = self.board[x][y]
                 weight_offset = self._nearby_fruit_weight_calculator(distance, self.needed_fruits[name], self.available_fruits[name])
                 new_weight += weight_offset
+                trace('weight calculated: ' + str(weight_offset))
             else:
                 new_weight += max_weight
+                trace('max weight: ' + str(max_weight))
             new_max_weight += max_weight
+        trace('total weight: ' + str(new_weight))
+        trace('total max weight: ' + str(new_max_weight))
         return (new_weight / (new_max_weight / 100)) / 10
     
     def _calculate_nearby_fruit_factor2(self, fruit):
@@ -244,7 +267,7 @@ class Game():
 
         # add final numbers to object for debugging
         fruit['yummy_calc'] = (needed, available, nearby_factor, distance)
-        fruit['nearby_factor'] = self._calculate_nearby_fruit_factor(fruit)
+        fruit['nearby_factor'] = nearby_factor
         # calculation
         return (distance * 2.5) + (needed * 1) + (available * 1.2) + (nearby_factor * 1.2)
     
