@@ -105,12 +105,11 @@ class Game():
 
     def calculate_game_state(self):
         self.num_types_won = 0
-        
+        additional_types_needed = 0
         for fruit_name,fruit_total in self.fruits.iteritems():
             mine = get_my_item_count(fruit_name)
             opponent = get_opponent_item_count(fruit_name)
             available = fruit_total - mine - opponent
-            additional_types_needed = 0
             # set available fruit
             self.available_fruits[fruit_name] = available
             # count if I've won this type
