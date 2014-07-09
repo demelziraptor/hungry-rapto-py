@@ -1,5 +1,5 @@
 class Game():
-
+    
     def __init__(self):
         ####
         # properties that stay the same throughout the game
@@ -10,9 +10,9 @@ class Game():
         self.width = WIDTH
         self.height = HEIGHT
         
-        self.settings = {
-            'closeness_margin': 1   # distance +/- 1 irrelevant for choosing dinner
-        } 
+        # settings
+        self.pick_priority = ['yummy', 'needed', 'distance', 'name']   # fruit choosing decision
+        self.fruit_type_buffer = 1   # self.num_types_needed +1 (safety if lose type)
         
         ####
         # properties that change
@@ -29,7 +29,7 @@ class Game():
         
         # preferences for next move
         self.pref_fruit_types = []   # list of types of fruit going to try and get
-        self.pref_fruit_locations = {}
+        self.pref_fruit_with_attributes = []   # all fruit looking at with  additional data
         
         # next move
         self.dinner_location = (0,0)
@@ -80,24 +80,20 @@ class Game():
         if self.dinner_location and self.current_position == self.dinner_location:
             x,y = self.current_position
             if self.board[x][y] > 0:
+                trace('DELICIOUS FRUIT OM NOM NOM NOM')
                 self.next_move = TAKE
                 self.dinner_location = False
                 return True
         return False
-
+    
     def calculate_dinner_location(self):
-        possible_fruits = self._get_list_of_possible_fruits()
-        dinner = {'name': '', 'coords': (0,0), 'distance': 0}
-        for fruit in possible_fruits:
+        dinner = {'name': '', 'coords': (0,0), 'distance': 0, 'needed': 0}
+        for fruit in self.pref_fruit_with_attributes:
             if not dinner['name']:
                 dinner = fruit
                 continue
-            if self.needed_fruits[fruit['name']] < self.needed_fruits[dinner['name']]:
-                dinner = fruit
-                continue
-            if self.needed_fruits[fruit['name']] == self.needed_fruits[dinner['name']]:
-                if fruit['distance'] < dinner['distance']:
-                    dinner = fruit
+            dinner = self._decide_most_delicious(dinner, fruit)
+        trace('this is dinner: ' + str(dinner))
         self.dinner_location = dinner['coords']
 
     def calculate_game_state(self):
@@ -117,16 +113,17 @@ class Game():
                 self.needed_fruits[fruit_name] = 0
                 continue
             self.needed_fruits[fruit_name] = self.targets[fruit_name] - mine
-        self.num_types_needed = self.num_types_to_win - self.num_types_won
+        self.num_types_needed = self.num_types_to_win - (self.num_types_won -
+            self.fruit_type_buffer)
 
     def calculate_move_preferences(self):
         # reset preferences
         self.pref_fruit_types = []
-        self.pref_fruit_locations = {}
+        self.pref_fruit_with_attributes = []
         # set pref fruit types
         self.calculate_pref_fruit_types()
         # set pref fruit locations
-        self.calculate_pref_fruit_locations()
+        self.calculate_pref_fruit_with_attributes()
     
     def calculate_pref_fruit_types(self):
         needed_fruits = self.needed_fruits.copy()
@@ -142,20 +139,49 @@ class Game():
             self.pref_fruit_types.append(fruit)
     
     
-    def calculate_pref_fruit_locations(self):
+    def calculate_pref_fruit_with_attributes(self):
         for x in range(self.width):
             for y in range(self.height):
                 name = self.board[x][y]
                 if name in self.pref_fruit_types:
+                    trace('wanted fruit at: ' + str((x,y)))
                     position = (x,y)
                     distance = self._distance(self.current_position, position)
-                    if distance not in self.pref_fruit_locations:
-                        self.pref_fruit_locations[distance] = []
-                    self.pref_fruit_locations[distance].append({
+                    self.pref_fruit_with_attributes.append({
                         'name': name, 
                         'coords': position,
-                        'distance': distance})
+                        'distance': distance,
+                        'needed': self.needed_fruits[name]})
             
+    ####
+    # fruit-picking methods
+    ####
+    def _decide_extra_type(self):
+        """ do we want to get the extra type for safety? """
+        
+    
+    def _pick_lowest(self, f0, f1, iteration):
+        try:
+            key = self.pick_priority[iteration]
+        except:
+            # nothing between them, more AI in future, for now pick f0
+            #trace('fruit comparison same')
+            return f0
+        if f0[key] == f1[key]:
+            return self._pick_lowest(f0, f1, iteration + 1)
+        #trace('chosen ' + str(min((f0,f1), key=lambda x:x[key])) + ' between these: ' + str(f0) + ' ' + str(f1) + ' in this type: ' + str(self.pick_priority[iteration])
+        return min((f0,f1), key=lambda x:x[key])
+    
+    def _calculate_fruit_deliciousness(self, fruit):
+        if not fruit['needed']:
+            fruit['needed'] = 30   # random high number to push up yumminess
+        return fruit['distance'] * fruit['needed']
+    
+    def _decide_most_delicious(self, f0, f1):
+        f0['yummy'] = self._calculate_fruit_deliciousness(f0)
+        f1['yummy'] = self._calculate_fruit_deliciousness(f1)
+        return self._pick_lowest(f0, f1, 0)
+
     ####
     # helper methods
     ####
@@ -169,27 +195,16 @@ class Game():
         for fruit_name,fruit_total in self.available_fruits.iteritems():
             if fruit_total != 0 and fruit_name not in self.pref_fruit_types:
                 return fruit_name
-                
-                
+                       
     def _distance(self, p0, p1):
         """ difference in x + difference in y to calculate distance """
         return abs(p0[0] - p1[0]) + abs(p0[1] - p1[1])
-
-    def _get_list_of_possible_fruits(self):
-        smallest_distance = min(self.pref_fruit_locations)
-        possible_fruits = self.pref_fruit_locations[smallest_distance]
-        # add others based on closeness margin
-        for i in range(self.settings['closeness_margin']):
-            new_distance = smallest_distance + i + 1
-            if new_distance in self.pref_fruit_locations:
-                possible_fruits += self.pref_fruit_locations[new_distance]
-        return possible_fruits
         
     def _calculate_direction(self):
         mx,my = self.current_position
         tx,ty = self.dinner_location
         trace('current position: ' + str(self.current_position))
-        trace('dinner location: ' + str(self.dinner_location))
+        trace('dinner position: ' + str(self.dinner_location))
         if mx > tx:
             self.next_move = WEST
             return
@@ -202,6 +217,7 @@ class Game():
         if my < ty:
             self.next_move = SOUTH
             return
+        # actually, dinner is here! convenient! :D
         self.next_move = TAKE
             
     ####
