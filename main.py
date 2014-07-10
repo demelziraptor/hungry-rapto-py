@@ -145,8 +145,7 @@ class Game():
         needed_fruits = self.needed_fruits.copy()
         for i in range(self.num_types_needed):
             try:
-                # TODO: available fruits????
-                fruit = min(needed_fruits, key=available_fruits.get)
+                fruit = min(needed_fruits, key=needed_fruits.get)
                 if needed_fruits[fruit] == 0:
                     needed_fruits.pop(fruit, None)
                     continue
@@ -194,8 +193,7 @@ class Game():
         search_area = self._distance((0,0), (self.width-1, self.height-1))
         max_needed = max(self.needed_fruits.values())
         max_available = max(self.available_fruits.values())
-        max_positions_per_distance = self._max_num_nearby_positions(search_area)
-        new_weight = 0
+        weight = 0
         new_max_weight = 0
         # weight
         for x,y in self._nearby_positions(fruit['position'], search_area):
@@ -204,50 +202,9 @@ class Game():
             if self.board[x][y] in self.pref_fruit_types:
                 name = self.board[x][y]
                 weight_offset = self._nearby_fruit_weight_calculator(distance, self.needed_fruits[name], self.available_fruits[name])
-                new_weight += weight_offset
+                weight += weight_offset
                 new_max_weight += max_weight
-        return (new_weight / (new_max_weight / 100))
-    
-    def _calculate_nearby_fruit_factor3(self, fruit):
-        """ look at nearby fruit and assign weight to each """
-        search_area = self._distance((0,0), (self.width-1, self.height-1))
-        max_needed = max(self.needed_fruits.values())
-        max_available = max(self.available_fruits.values())
-        max_positions_per_distance = self._max_num_nearby_positions(search_area)
-        new_weight = 0
-        new_max_weight = 0
-        # weight
-        for x,y in self._nearby_positions(fruit['position'], search_area):
-            distance = self._distance(fruit['position'], (x,y))
-            max_weight = (self._nearby_fruit_weight_calculator(distance, max_needed, max_available))*5
-            if self.board[x][y] in self.pref_fruit_types:
-                name = self.board[x][y]
-                weight_offset = self._nearby_fruit_weight_calculator(distance, self.needed_fruits[name], self.available_fruits[name])
-                new_weight += weight_offset
-                trace('weight calculated: ' + str(weight_offset))
-            else:
-                new_weight += max_weight
-                trace('max weight: ' + str(max_weight))
-            new_max_weight += max_weight
-        trace('total weight: ' + str(new_weight))
-        trace('total max weight: ' + str(new_max_weight))
-        return (new_weight / (new_max_weight / 100)) / 10
-    
-    def _calculate_nearby_fruit_factor2(self, fruit):
-        """ look at nearby fruit and assign weight to each """
-        search_area = 10
-        empty_position_weight = 30
-        fruits_nearby = 0
-        weight_offset = 0
-        for x,y in self._nearby_positions(fruit['position'], search_area):
-            if self.board[x][y] in self.pref_fruit_types:
-                fruits_nearby += 1
-                name = self.board[x][y]
-                weight_offset += (self._distance(fruit['position'], (x,y)) + 
-                    self.needed_fruits[name] + self.available_fruits[name])
-        weight = ((self._max_num_nearby_positions(search_area) - fruits_nearby) * 
-            empty_position_weight) + weight_offset
-        return weight/100
+        return (weight / (new_max_weight / 100))
     
     def _calculate_fruit_deliciousness(self, fruit):
         """ calculate the 'yummy' of the fruit """
@@ -280,28 +237,7 @@ class Game():
 
     ####
     # helper methods
-    ####
-    def _max_num_nearby_positions2(self, area):
-        """ assuming no board edges, maximum number of nearby positions """
-        total = 0
-        for i in range(area):
-            total += (i+1) * 4
-        return total
-    
-    def _max_num_nearby_positions3(self, area):
-        """ assuming no board edges, maximum number of nearby positions """
-        total = 0
-        for i in range(area):
-            total += (i+1) * 4
-            yield (i+1,total)
-    
-    def _max_num_nearby_positions(self, area):
-        """ assuming no board edges, maximum number of nearby positions """
-        max_per_distance = {}
-        for i in range(area):
-            max_per_distance[i+1] = (i+1) * 4
-        return max_per_distance
-    
+    ####    
     def _num_nearby_positions(self, position, area):
         """ returns dict with distance and count of valid positions """
         nearby = {}
